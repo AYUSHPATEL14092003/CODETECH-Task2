@@ -1,0 +1,92 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import nltk
+
+from nltk.corpus import stopwords
+data = pd.read_csv('IMDB Dataset.csv')
+
+data.dropna(inplace = True)
+
+def clean_review(review):
+    str = ' '.join(word for word in review.split() if word.lower not in stopwords.words('english'))
+    return str
+
+data['review'] =  data['review'].apply(clean_review)
+
+# wordcloud
+
+from wordcloud import WordCloud
+
+#draw wordcloud
+
+text=' '.join(word for word in data['review'][data['sentiment'] == 'negative'].astype(str))
+wordcloud = WordCloud(height = 600 , width = 1000, max_font_size= 100).generate(text)
+plt.figure(figsize=(15,12))
+plt.imshow(wordcloud , interpolation =  'bilinear')
+plt.axis('off')
+plt.show()
+
+text=' '.join(word for word in data['review'][data['sentiment'] == 'positive'].astype(str))
+wordcloud = WordCloud(height = 600 , width = 1000, max_font_size= 100).generate(text)
+plt.figure(figsize=(15,12))
+plt.imshow(wordcloud , interpolation =  'bilinear')
+plt.axis('off')
+plt.show()
+
+ from sklearn.feature_extraction.text import TfidfVectorizer
+cv = TfidfVectorizer(max_features=2500)
+
+
+reviews = cv.fit_transform(data['review']).toarray()
+
+data['sentiment'] = data['sentiment'].replace(['positive' , 'negative'],[1,0])
+
+data['sentiment'].value_counts()
+
+from sklearn.linear_model import LogisticRegression
+
+model = LogisticRegression()
+
+from sklearn.model_selection import train_test_split
+
+reviews_train , reviews_test , sent_train , sent_test = train_test_split(reviews , data['sentiment'] , test_size=0.2)
+
+model.fit(reviews_train,sent_train)
+
+pred = model.predict(reviews_test)
+
+
+
+
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+cm = confusion_matrix(sent_test, pred , labels = model.classes_)
+display = ConfusionMatrixDisplay(confusion_matrix = cm , display_labels=model.classes_)
+plt.figure(figsize=(15,12))
+display.plot()
+plt.show()
+
+
+model.score( reviews_test , sent_test)
+
+import pickle as pk
+
+pk.dump(model,open('model.pkl','wb'))
+
+pk.dump(cv,open('scaler.pkl','wb'))
+
+
+import pandas as pd
+import pickle as pk
+from sklearn.feature_extraction.text import TfidfVectorizer
+import streamlit as st
+
+model = pk.load(open('model.pkl','rb'))
+scaler = pk.load(open('scaler.pkl','rb'))
+review  = st.text_input('Enter movie review')
+if st.button('Predict'):
+    review_scale = scaler.transform([review]).toarray()
+    result = model.predict(review_scale)
+    if result[0] == 0:
+        st.write('Negative review')
+    else:
+        st.write('Positive review')
